@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path"
+	"strings"
 	"time"
 
 	"github.com/go-faker/faker/v4"
@@ -28,21 +28,26 @@ func sendJSON(url string, data any, headers map[string]string) (*http.Response, 
 	if err != nil {
 		return nil, err
 	}
+
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, err
 	}
+
 	req.Header.Set("Content-Type", "application/json")
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
+
 	client := &http.Client{Timeout: 10 * time.Second}
+
 	return client.Do(req)
 }
 
 func main() {
 	apiUrl := os.Getenv("API_URL")
 	logUrl := os.Getenv("LOG_URL")
+
 	if apiUrl == "" {
 		fmt.Println("API_URL not set")
 		return
@@ -56,7 +61,7 @@ func main() {
 		"Origin": "CrawlerBotMe",
 	}
 
-	resp1, err := sendJSON(path.Join(apiUrl, "subscribers"), subscriber, headers)
+	resp1, err := sendJSON(strings.Join([]string{apiUrl, "subscribers"}, "/"), subscriber, headers)
 	status := "FAILED"
 	message := "Subscription failed"
 
@@ -65,11 +70,13 @@ func main() {
 	} else {
 		if resp1 != nil {
 			defer resp1.Body.Close()
+
 			message = resp1.Status
+
 			if resp1.StatusCode >= 200 && resp1.StatusCode < 300 {
 				status = "SUCCESS"
 				data2 := map[string]string{"email": subscriber.Email}
-				resp2, err2 := sendJSON(path.Join(apiUrl, "unsubscribe"), data2, headers)
+				resp2, err2 := sendJSON(strings.Join([]string{apiUrl, "unsubscribe"}, "/"), data2, headers)
 				if err2 != nil {
 					message = fmt.Sprintf("Second request error: %v", err2)
 				} else {
