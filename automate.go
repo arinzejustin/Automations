@@ -75,7 +75,7 @@ func main() {
 
 			if resp1.StatusCode >= 200 && resp1.StatusCode < 300 {
 				status = "SUCCESS"
-				data2 := map[string]string{"email": subscriber.Email}
+				data2 := map[string]string{"email": "hello@example.com"}
 				resp2, err2 := sendJSON(strings.Join([]string{apiUrl, "unsubscribe"}, "/"), data2, headers)
 				if err2 != nil {
 					message = fmt.Sprintf("Second request error: %v", err2)
