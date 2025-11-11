@@ -22,6 +22,7 @@ jobs:
         env:
           API_URL: ${{ secrets.API_URL }}
           LOG_URL: ${{ secrets.LOG_API_URL }}
+          ORIGIN: ${{ secrets.ORIGIN }}
         run: |
           go mod tidy
           go run automate.go
