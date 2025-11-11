@@ -51,6 +51,8 @@ func main() {
 	apiURL := os.Getenv("API_URL")
 	logURL := os.Getenv("LOG_URL")
 	origin := os.Getenv("ORIGIN")
+	
+	fmt.Println(apiURL, logURL, origin)
 
 	if apiURL == "" {
 		fmt.Println("❌ API_URL not set in environment")
