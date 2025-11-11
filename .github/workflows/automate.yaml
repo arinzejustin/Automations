@@ -2,7 +2,7 @@ name: Go Automate
 
 on:
   schedule:
-    - cron: "0 * * * *"  # runs once every hour
+    - cron: "0 0 */3 * *"
   workflow_dispatch:
 
 jobs:
@@ -16,7 +16,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: "1.23"
 
       - name: Run automate script
         env:
