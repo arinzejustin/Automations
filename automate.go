@@ -12,93 +12,106 @@ import (
 	"github.com/go-faker/faker/v4"
 )
 
+// Subscriber represents a mock subscriber payload.
 type Subscriber struct {
-	Email string `faker:"email"`
+	Email string `faker:"email" json:"email"`
 }
 
-type LogPayLoad struct {
+// LogPayload defines the structure for sending logs.
+type LogPayload struct {
 	Email     string `json:"email"`
 	Timestamp string `json:"timestamp"`
 	Status    string `json:"status"`
 	Message   string `json:"message"`
 }
 
+// sendJSON performs an HTTP POST with JSON payload and custom headers.
 func sendJSON(url string, data any, headers map[string]string) (*http.Response, error) {
-	jsonData, err := json.Marshal(data)
+	body, err := json.Marshal(data)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to marshal JSON: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	for k, v := range headers {
-		req.Header.Set(k, v)
+	for key, value := range headers {
+		req.Header.Set(key, value)
 	}
 
 	client := &http.Client{Timeout: 10 * time.Second}
-
 	return client.Do(req)
 }
 
+// main is the entry point for the program.
 func main() {
-	apiUrl := os.Getenv("API_URL")
-	logUrl := os.Getenv("LOG_URL")
+	apiURL := os.Getenv("API_URL")
+	logURL := os.Getenv("LOG_URL")
+	origin := os.Getenv("ORIGIN")
 
-	if apiUrl == "" {
-		fmt.Println("API_URL not set")
+	if apiURL == "" {
+		fmt.Println("❌ API_URL not set in environment")
 		return
 	}
 
+	// Generate a fake subscriber
 	subscriber := Subscriber{
 		Email: faker.Email(),
 	}
 
 	headers := map[string]string{
-		"Origin": "CrawlerBotMe",
+		"Origin": origin,
 	}
 
-	resp1, err := sendJSON(strings.Join([]string{apiUrl, "subscribers"}, "/"), subscriber, headers)
 	status := "FAILED"
 	message := "Subscription failed"
 
-	if err != nil {
-		message = fmt.Sprintf("First request error: %v", err)
+	// Attempt subscription
+	subscribeURL := fmt.Sprintf("%s/subscribe", strings.TrimRight(apiURL, "/"))
+	data := map[string]string{"email": subscriber.Email}
+
+	subscribeRes, subscribeErr := sendJSON(subscribeURL, data, headers)
+
+	if subscribeErr != nil {
+		message = fmt.Sprintf("Error sending subscribe request: %v", subscribeErr)
 	} else {
-		if resp1 != nil {
-			defer resp1.Body.Close()
+		defer subscribeRes.Body.Close()
+		message = subscribeRes.Status
 
-			message = resp1.Status
+		if subscribeRes.StatusCode >= 200 && subscribeRes.StatusCode < 300 {
+			status = "SUCCESS"
 
-			if resp1.StatusCode >= 200 && resp1.StatusCode < 300 {
-				status = "SUCCESS"
-				data2 := map[string]string{"email": "hello@example.com"}
-				resp2, err2 := sendJSON(strings.Join([]string{apiUrl, "unsubscribe"}, "/"), data2, headers)
-				if err2 != nil {
-					message = fmt.Sprintf("Second request error: %v", err2)
-				} else {
-					if resp2 != nil {
-						defer resp2.Body.Close()
-						message = fmt.Sprintf("Second request: %s", resp2.Status)
-					}
-				}
+			// Attempt to unsubscribe after success
+			unsubscribeURL := fmt.Sprintf("%s/unsubscribe", strings.TrimRight(apiURL, "/"))
+			data := map[string]string{"email": subscriber.Email}
+
+			unsubscribeRes, unsubscribeErr := sendJSON(unsubscribeURL, data, headers)
+			if unsubscribeErr != nil {
+				message = fmt.Sprintf("Error sending unsubscribe request: %v", unsubscribeErr)
+			} else {
+				defer unsubscribeRes.Body.Close()
+				message = fmt.Sprintf("Unsubscribe request: %s", unsubscribeRes.Status)
 			}
 		}
 	}
 
-	logPayLoad := LogPayLoad{
+	// Prepare and send log payload
+	logPayload := LogPayload{
 		Email:     subscriber.Email,
 		Timestamp: time.Now().Format(time.RFC3339),
 		Status:    status,
 		Message:   message,
 	}
 
-	if logUrl != "" {
-		sendJSON(logUrl, logPayLoad, nil)
+	if logURL != "" {
+		if _, err := sendJSON(logURL, logPayload, nil); err != nil {
+			fmt.Printf("⚠️  Failed to send log: %v\n", err)
+		}
 	}
 
-	fmt.Printf("📨 %s | %s | %s\n", logPayLoad.Email, logPayLoad.Status, logPayLoad.Message)
+	// Console summary
+	fmt.Printf("📨 %s | %s | %s\n", logPayload.Email, logPayload.Status, logPayload.Message)
 }
